@@ -1,11 +1,11 @@
-import matplotlib.pyplot as plt
-from os import path, mkdir
+from os import path
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Input, LeakyReLU, BatchNormalization
-from tensorflow.keras.optimizers import Adam, RMSprop, SGD
+from tensorflow.keras.optimizers import Adam
 from utils.simple_data_generator import get_quadratic_data_sample, save_plot_to_buffer, plot_quadratic_data
 from utils.save_models import save_models
+import matplotlib.pyplot as plt
 from time import strftime, localtime
 
 
@@ -127,8 +127,6 @@ def train_step(data, generator, discriminator, d_of_g):
         return discriminator_loss, generator_loss
 
 
-
-
 if __name__ == '__main__':
 
         # Set Parameters for training
@@ -138,7 +136,7 @@ if __name__ == '__main__':
         layers = 4  # Number of hidden layers
         g_out_dim = 2  # Generator Output Units == Discriminator Input Units
         batch_size = 100  # Define Batch Size
-        plot_interval = 100  # Every plot_epoch create a graph with real and generated data distribution
+        plot_interval = 100  # Every plot_interval create a graph with real and generated data distribution
 
         # Build Generator
         generator = build_simple_nn(
@@ -197,7 +195,7 @@ if __name__ == '__main__':
                         # Collect data
                         real_data = get_quadratic_data_sample(batch_size)
                         # Train gan: Perform batch training with the collected data
-                        d_loss, g_loss = gan.train_step(real_data)
+                        d_loss, g_loss = train_step(real_data, generator, discriminator, gan)
                         # Save generator and discriminator losses
                         generator_train_loss(g_loss)
                         discriminator_train_loss(d_loss)
@@ -247,4 +245,4 @@ if __name__ == '__main__':
         tf.summary.trace_off()
 
         # Save Models
-        save_models(discriminator, generator, gan)
+        save_models(discriminator, generator, gan, 'simple_gan')
