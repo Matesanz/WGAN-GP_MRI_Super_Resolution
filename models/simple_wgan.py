@@ -3,10 +3,97 @@ from os import path
 import tensorflow as tf
 from models.simple_gan import build_simple_nn, build_gan
 from tensorflow.keras.optimizers import Adam
+import keras.backend as K
 import matplotlib.pyplot as plt
-from models.simple_wgan import wasserstein_loss, discriminator_train_step, generator_train_step
+from numpy import clip
 from utils.save_models import save_models
 from utils.simple_data_generator import get_quadratic_data_sample, plot_quadratic_data, save_plot_to_buffer
+
+
+def wasserstein_loss(y, y_hat):
+        """
+        Compute Wasserstein loss
+        The loss will normally be less than 0
+        :param y: expected output
+        :param y_hat: predicted output
+        :return: product mean
+        """
+        return K.mean(y * y_hat)
+
+
+def generator_train_step(batch_size, generator, d_of_g):
+
+        """
+        Perform Batch training step on Generator
+        :param batch_size: int, batch length
+        :param generator: generator keras model
+        :param d_of_g: discriminator(generator) keras model
+        :return: generator Loss
+        """
+
+        # Get generator input
+        generator_input_dim = generator.input.shape[1]
+        # true_labels = tf.zeros((batch_size, 1))
+        true_labels = -tf.ones((batch_size, 1))
+
+        # --------------------
+        # GENERATOR TRAINING
+        # --------------------
+
+        # Create random z vectors to feed generator
+        random_z_vectors = tf.random.normal(shape=(batch_size, generator_input_dim))
+        # Train generator and get loss for training tracking
+        generator_loss = d_of_g.train_on_batch(random_z_vectors, true_labels)
+
+        # Return losses to track training
+        return generator_loss
+
+
+def discriminator_train_step(data, generator, discriminator, clip_value=0.01):
+
+        """
+        Performs Batch training on Discriminator
+        :param data: array of 2d coordinates, real data sample
+        :param generator: generator model
+        :param discriminator: discriminator model
+        :param d_of_g: gan model
+        :param clip_value: float, limit weights values on discrimintor weights
+        :param d_epochs: int, number of iters to train discriminator on every epoch
+        :return: generator and discriminator losses
+        """
+
+        # Convert training data to tensor
+        real_data = tf.convert_to_tensor(data, dtype=tf.float32)
+        # Get Number of instances of real data == Batch size
+        batch_size = tf.shape(data)[0]
+        # Get generator input
+        generator_input_dim = generator.input.shape[1]
+        # Create z vectors to feed generator # tip: use normal dist, not uniform.
+        random_z_vectors = tf.random.normal(shape=(batch_size, generator_input_dim))
+        # Create generated data
+        generated_data = generator.predict_on_batch(random_z_vectors)
+        # Combine generated and real data to train on same batch
+        combined_data = tf.concat([real_data, generated_data], axis=0)
+        # Labels for real (ones vector) and fake (minus ones vector) data
+        fake_labels = tf.ones((batch_size, 1))
+        true_labels = -fake_labels
+
+        # --------------------
+        # IMPORTANT: Clip critic weights to satisfy Lipschitz condition
+        # --------------------
+        for layer in discriminator.layers:
+                weights = layer.get_weights()
+                weights = [clip(w, -clip_value, clip_value) for w in weights]
+                layer.set_weights(weights)
+
+        # Train discriminator and get loss for training tracking
+        # discriminator_loss = discriminator.train_on_batch(combined_data, labels)
+        true_discriminator_loss = discriminator.train_on_batch(real_data, true_labels)
+        fake_discriminator_loss = discriminator.train_on_batch(generated_data, fake_labels)
+        discriminator_loss = -true_discriminator_loss + fake_discriminator_loss
+
+        return discriminator_loss
+
 
 if __name__ == '__main__':
 
