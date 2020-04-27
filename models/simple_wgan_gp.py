@@ -70,6 +70,20 @@ def wasserstein_loss(y, y_hat):
 
 
 def build_adversarial(generator, critic, batch_size):
+
+        """
+        Builds critic and generator graph
+        :param generator: generator Keras Model
+        :param critic: critic Keras Model
+        :param batch_size: int, length of batch durin training
+        :return: Critic and Generator Models
+        """
+
+        # -------------------------------
+        # Construct Computational Graph
+        #       for the Critic
+        # -------------------------------
+
         # Get generator input
         generator_input_dim = generator.input.shape[1]
         critic_input_dim = critic.input.shape[1]
@@ -91,7 +105,7 @@ def build_adversarial(generator, critic, batch_size):
         # Set Critic Real data input
         # Critic will take real data samples from this Layer
         real_input = Input(
-                shape=(critic_input_dim,),
+                shape=(critic_input_dim),
                 name='real_input'
         )
 
@@ -112,37 +126,57 @@ def build_adversarial(generator, critic, batch_size):
                                   interpolated_samples=interpolated_input)
         partial_gp_loss.__name__ = 'gradient_penalty'  # Keras requires function names
 
-        # Build Adversarial Graph
-        adversarial_graph = Model(
+        # Build Critic Graph
+        critic_graph = Model(
                 inputs=[real_input, z_input],
                 outputs=[real_graph, fake_graph, interpolated_graph],
-                name='Adversarial Graph'
+                name='Critic Graph'
         )
 
         # Compile Critic
-        adversarial_graph.compile(
-                loss=[wasserstein_loss, wasserstein_loss, partial_gp_loss]
-                , optimizer=Adam(lr=5e-5, beta_1=0.5)
-                , loss_weights=[1, 1, 10]
+        critic_graph.compile(
+                optimizer=Adam(lr=5e-5, beta_1=0.5),  # Optimizer described in paper
+                loss=[wasserstein_loss, wasserstein_loss, partial_gp_loss],  # loss for real, fake and interpol images
+                loss_weights=[1, 1, 10]  # Every loss has a weighting value
         )
 
-        # Return Model
-        return adversarial_graph
+        # -------------------------------
+        # Construct Computational Graph
+        #       for the Generator
+        # -------------------------------
+
+        # Critic will be used for inference so freeze critic weights
+        critic.trainable = False
+        generator.trainable = True
+        # Set input for generator graph: z vector input
+        generator_graph_input = Input(shape=(generator_input_dim,))  # z input
+        # Set body for generator graph: D of G
+        generator_graph_output = critic(generator(generator_graph_input))  # D of G in Vanilla GAN
+        # Build generator Graph
+        generator_graph = Model(generator_graph_input, generator_graph_output, name='generator graph')
+        # Compile generator Graph
+        generator_graph.compile(
+                optimizer=Adam(lr=5e-5, beta_1=0.5),
+                loss=wasserstein_loss
+        )
+
+        # Return Models
+        return critic_graph, generator_graph
 
 
-def generator_train_step(batch_size, generator, d_of_g):
+def generator_train_step(batch_size, generator, generator_graph):
         """
         Perform Batch training step on Generator
         :param batch_size: int, batch length
         :param generator: generator keras model
-        :param d_of_g: discriminator(generator) keras model
+        :param generator_graph: discriminator(generator(z_input)) keras model
         :return: generator Loss
         """
 
         # Get generator input
         generator_input_dim = generator.input.shape[1]
         # true_labels = tf.zeros((batch_size, 1))
-        true_labels = -tf.ones((batch_size, 1))
+        true_labels = tf.ones((batch_size, 1))
 
         # --------------------
         # GENERATOR TRAINING
@@ -151,55 +185,47 @@ def generator_train_step(batch_size, generator, d_of_g):
         # Create random z vectors to feed generator
         random_z_vectors = tf.random.normal(shape=(batch_size, generator_input_dim))
         # Train generator and get loss for training tracking
-        generator_loss = d_of_g.train_on_batch(random_z_vectors, true_labels)
+        generator_loss = generator_graph.train_on_batch(random_z_vectors, true_labels)
 
         # Return losses to track training
         return generator_loss
 
 
-def discriminator_train_step(data, generator, discriminator, clip_value=0.01):
+def critic_train_step(data, critic_graph, generator):
         """
-        Performs Batch training on Discriminator
+        Performs Batch training on Critic
         :param data: array of 2d coordinates, real data sample
+        :param critic_graph: gan model
         :param generator: generator model
-        :param discriminator: discriminator model
-        :param d_of_g: gan model
-        :param clip_value: float, limit weights values on discrimintor weights
-        :param d_epochs: int, number of iters to train discriminator on every epoch
-        :return: generator and discriminator losses
+        :return: critic losses
         """
+
+        # Get Number of instances of real data == Batch size
+        batch_size = tf.shape(data)[0]
+        # Get length of z vector
+        generator_input_dim = generator.input.shape[1]
 
         # Convert training data to tensor
         real_data = tf.convert_to_tensor(data, dtype=tf.float32)
-        # Get Number of instances of real data == Batch size
-        batch_size = tf.shape(data)[0]
-        # Get generator input
-        generator_input_dim = generator.input.shape[1]
         # Create z vectors to feed generator # tip: use normal dist, not uniform.
         random_z_vectors = tf.random.normal(shape=(batch_size, generator_input_dim))
         # Create generated data
         generated_data = generator.predict_on_batch(random_z_vectors)
-        # Combine generated and real data to train on same batch
-        combined_data = tf.concat([real_data, generated_data], axis=0)
+
         # Labels for real (ones vector) and fake (minus ones vector) data
-        fake_labels = tf.ones((batch_size, 1))
-        true_labels = -fake_labels
+        true_labels = tf.ones((batch_size, 1))
+        fake_labels = -true_labels
+        dummy_labels = tf.zeros((batch_size, 1))
 
-        # --------------------
-        # IMPORTANT: Clip critic weights to satisfy Lipschitz condition
-        # --------------------
-        for layer in discriminator.layers:
-                weights = layer.get_weights()
-                weights = [clip(w, -clip_value, clip_value) for w in weights]
-                layer.set_weights(weights)
 
-        # Train discriminator and get loss for training tracking
+        # Train critic and get loss for training tracking
         # discriminator_loss = discriminator.train_on_batch(combined_data, labels)
-        true_discriminator_loss = discriminator.train_on_batch(real_data, true_labels)
-        fake_discriminator_loss = discriminator.train_on_batch(generated_data, fake_labels)
-        discriminator_loss = -true_discriminator_loss + fake_discriminator_loss
+        critic_loss = critic_graph.train_on_batch(
+                [real_data, generated_data],  # feeding inputs of the graph
+                [true_labels, fake_labels, dummy_labels]  # feeding outputs of the graph to calculate loss
+        )
 
-        return discriminator_loss
+        return critic_loss
 
 
 if __name__ == '__main__':
@@ -241,13 +267,13 @@ if __name__ == '__main__':
 
         discriminator.summary()
 
-
         # Compile Discriminator
         discriminator.compile(
                 optimizer=Adam(lr=d_lr, beta_1=0.5),
                 loss=wasserstein_loss)  # DIFFERENCE WITH SIMPLE_GAN
 
         # Create Keras GAN Model
-        gan = build_adversarial(generator, discriminator, batch_size)
+        critic_graph, generator_graph = build_adversarial(generator, discriminator, batch_size)
 
-        gan.summary()  # Show GAN Architecture
+        critic_graph.summary()  # Show GAN Architecture
+        generator_graph.summary()  # Show GAN Architecture
