@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from time import strftime, localtime
 
 
-def build_simple_nn(input_units, output_units, activation, layer_number=4, model_name='nn'):
+def build_simple_nn(input_units, output_units, activation, layer_number=4, units_per_layer=16, model_name='nn'):
 
         """
         Build simple n layers fully connected neural network
@@ -25,7 +25,7 @@ def build_simple_nn(input_units, output_units, activation, layer_number=4, model
 
         # First Hidden Layer
         layer_name = model_name + '_hidden_layer_' + str(1)
-        nn = Dense(units=16, name=layer_name)(nnin)
+        nn = Dense(units=units_per_layer, name=layer_name)(nnin)
         nn = BatchNormalization()(nn)
         nn = LeakyReLU(alpha=0.1)(nn)
 
@@ -33,7 +33,11 @@ def build_simple_nn(input_units, output_units, activation, layer_number=4, model
 
                 # New Hidden Layer
                 layer_name = model_name + '_hidden_layer_' + str(i + 2)
-                nn = Dense(units=16, name=layer_name)(nn)
+                nn = Dense(
+                        units=units_per_layer,
+                        name=layer_name,
+                        kernel_initializer='he_uniform'
+                )(nn)
                 nn = BatchNormalization()(nn)
                 nn = LeakyReLU(alpha=0.1)(nn)
 
@@ -42,7 +46,9 @@ def build_simple_nn(input_units, output_units, activation, layer_number=4, model
         nnout = Dense(
                 units=output_units,
                 activation=activation,
-                name=layer_name)(nn)
+                name=layer_name,
+                kernel_initializer='he_uniform'
+        )(nn)
 
         # Create Model
         model = Model(nnin, nnout, name=model_name)
