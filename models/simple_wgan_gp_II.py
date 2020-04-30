@@ -1,39 +1,39 @@
+from os import path
+from time import strftime, localtime
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from models.simple_gan import build_simple_nn
 from utils.simple_data_generator import get_quadratic_data_sample, plot_quadratic_data
+from utils.plot_animator import PlotAnimator
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 class Simple_WGAN(Model):
 
-        def __init__(self, **kwargs):
+        def __init__(self, layers_n, hidden_units, gout_units=2, z_units=10, g_lr=5e-5, c_lr=5e-5):
                 super(Simple_WGAN, self).__init__()
-                self.__dict__.update(kwargs)
+
 
                 # Set Parameters for training
-                epochs = 20001  # Training Epochs
-                self.z_units = 10  # Generator Input units
-                self.layers_n = 4  # Number of hidden layers
-                self.g_out_dim = 2  # Generator Output Units == Discriminator Input Units
-                batch_size = 32  # Define Batch Size
-                plot_interval = 100  # Every plot_interval create a graph with real and generated data distribution
-                self.units_per_layer = 16  # units on hidden layers
-                g_lr = 5e-5  # generator learning rate
-                d_lr = 5e-5  # discriminator learning rate
-                critic_loops = 5  # number of iterations to train discriminator on every epoch
+                self.z_units = z_units  # Generator Input units
+                self.layers_n = layers_n  # Number of hidden layers
+                self.g_out_dim = gout_units  # Generator Output Units == Discriminator Input Units
+                self.hidden_units = hidden_units  # units on hidden layers
+                self.g_lr = g_lr  # generator learning rate
+                self.c_lr = c_lr  # discriminator learning rate
+                # critic_loops = 5  # number of iterations to train discriminator on every epoch
 
-                self.generator_optimizer = Adam(lr=5e-5, beta_1=0.5)
-                self.critic_optimizer = Adam(lr=5e-5, beta_1=0.5)
+                self.generator_optimizer = Adam(lr=self.g_lr, beta_1=0.5)
+                self.critic_optimizer = Adam(lr=self.c_lr, beta_1=0.5)
 
                 # Build Generator
                 self.generator = build_simple_nn(
                         input_units=self.z_units,
                         output_units=self.g_out_dim,
                         layer_number=self.layers_n,
-                        units_per_layer=self.units_per_layer,
+                        units_per_layer=self.hidden_units,
                         activation='linear',
                         model_name='generator'
                 )
@@ -43,11 +43,10 @@ class Simple_WGAN(Model):
                         input_units=self.g_out_dim,
                         output_units=1,
                         layer_number=self.layers_n,
-                        units_per_layer=self.units_per_layer,
+                        units_per_layer=self.hidden_units,
                         activation=None,
                         model_name='critic'
                 )
-
 
         def set_trainable(self, model, val):
                 model.trainable = val
@@ -162,14 +161,90 @@ class Simple_WGAN(Model):
 
 if __name__ == '__main__':
 
-        wgan = Simple_WGAN()
-        batch_size = 64
-        n_epochs = 2001
+        # --------------------
+        #  PARAMETER INIT
+        # --------------------
+
+        wgan = Simple_WGAN(
+                layers_n=4,
+                hidden_units=16,
+        )
+        batch_size = 64  # Samples every epoch
+        n_epochs = 10001  # Training Epochs
+        plot_interval = 10  # Every plot_interval create a graph with real and generated data distribution
+
+        # fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(8.5, 4))
+        # fig.suptitle("Simple Wasserstein GP GAN Training Evolution", size=20)
+        # animator = PlotAnimator(fig)
+
+        # --------------------
+        #  TENSORBOARD SETUP
+        # --------------------
+        generator_train_loss = tf.keras.metrics.Mean('generator_train_loss', dtype=tf.float32)
+        critic_train_loss = tf.keras.metrics.Mean('critic_train_loss', dtype=tf.float32)
+        # Set Tensorboard Directory to track training
+        time = strftime("%d-%b-%H%M", localtime())
+        log_dir = path.join('..', 'logs', 'simple_wgan', time)
+        # Start model training tracing (logs)
+        summary_writer = tf.summary.create_file_writer(log_dir)
+        tf.summary.trace_on(graph=True, profiler=True)
+
+        z_control = tf.random.normal((batch_size, wgan.z_units))
+        real_distribution = get_quadratic_data_sample(batch_size)
 
         for epoch in range(n_epochs):
 
-                training_data = get_quadratic_data_sample(batch_size)
-                wgan.train(training_data)
+                # --------------------
+                #     TRAINING
+                # --------------------
 
-                print("epoch ", epoch)
+                training_data = get_quadratic_data_sample(batch_size)  # Get points from real distribution
+                wgan.train(training_data)  # Train our model on real distribution points
+                c_loss, g_loss = wgan.compute_loss(training_data)  # Get batch loss to track training
 
+                # -----------------------
+                #  TENSORBOARD TRACKING
+                # ------------------------
+
+                # Save generator and critic losses
+                generator_train_loss(g_loss)
+                critic_train_loss(c_loss)
+
+                # track training through console
+                template = 'Epoch {}, Gen Loss: {}, Dis Loss {}'
+                print(template.format(epoch + 1,
+                                      generator_train_loss.result(),
+                                      critic_train_loss.result()))
+
+                if epoch % plot_interval == 0:
+
+                        # -----------------------
+                        #  TENSORBOARD PLOTTING
+                        # ------------------------
+
+                        with summary_writer.as_default():
+
+                                # Write losses
+                                tf.summary.scalar('Generator Loss',
+                                                  generator_train_loss.result(),
+                                                  step=epoch)
+
+                                tf.summary.scalar('Discriminator Loss',
+                                                  critic_train_loss.result(),
+                                                  step=epoch)
+
+                        # animator.update_distribution_plot(
+                        #         ax1, training_data, fake.numpy(), epoch)
+                        # animator.update_training_plot(
+                        #         ax2,
+                        #         g_loss.numpy(),
+                        #         c_loss.numpy(),
+                        #         epoch)
+                        #
+                        # animator.epoch_end()
+
+        # animator.close(3)
+        # Plot
+        fake = wgan.generator(z_control)
+        plot_quadratic_data(real_distribution, show=False)
+        plot_quadratic_data(fake.numpy())
