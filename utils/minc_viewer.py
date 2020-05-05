@@ -37,11 +37,11 @@ class Viewer(object):
                 self.ind = self.slices // 2
 
                 if self.plane == 0:
-                        self.im = self.ax.imshow(self.X[self.ind, :, :])
+                        self.im = self.ax.imshow(self.X[self.ind, :, :], cmap='inferno')
                 if self.plane == 1:
-                        self.im = self.ax.imshow(self.X[:, self.ind, :])
+                        self.im = self.ax.imshow(self.X[:, self.ind, :], cmap='inferno')
                 if self.plane == 2:
-                        self.im = self.ax.imshow(self.X[:, :, self.ind])
+                        self.im = self.ax.imshow(self.X[:, :, self.ind], cmap='inferno')
 
                 self.update()
                 plt.show()
