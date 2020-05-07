@@ -2,6 +2,7 @@ import nibabel as nib
 from os import path
 import numpy as np
 import matplotlib.pyplot as plt
+from utils.imutils import pad_image
 
 
 class Viewer(object):
@@ -74,5 +75,7 @@ if __name__ == '__main__':
         IMAGE_PATH = path.join('..', 'resources', 'mri', IMAGE_FILE)
 
         img = nib.load(IMAGE_PATH)
-        data = img.get_fdata()
-        tracker = Viewer(data)
+        img = img.get_fdata()
+        img = pad_image(img)
+
+        tracker = Viewer(img)
