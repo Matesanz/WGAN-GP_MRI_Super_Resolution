@@ -2,6 +2,7 @@ from os import path
 import nibabel as nib
 from time import strftime, localtime
 import tensorflow as tf
+from tensorflow.keras import Sequential
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Input, Conv3DTranspose, Reshape, LeakyReLU, Flatten, Conv3D
 from tensorflow.keras.optimizers import Adam
@@ -10,121 +11,14 @@ import numpy as np
 from utils.imutils import pad_image
 
 
-def build_critic(ncf=32, kernel_size=5, layer_n=3, activation=None, input_dims=(192, 256, 192, 1)):
-
-        # TODO: CLEAN DISCRIMINATOR CODE
-
-        # Input Layer
-        model_name = 'critic'
-        layer_name = model_name + '_input'
-        nnin = Input(shape=input_dims, name=layer_name)
-
-        # init model weights
-        init = tf.initializers.RandomNormal(stddev=0.02)
-
-        # First Hidden Layer
-        layer_name = model_name + '_conv_' + str(1)
-        nn = Conv3D(filters=ncf,
-                    kernel_size=kernel_size,
-                    strides=(2, 2, 2),
-                    padding='same',
-                    use_bias=True,
-                    kernel_initializer=init,
-                    name=layer_name)(nnin)
-
-        nn = LeakyReLU(alpha=0.1)(nn)
-
-        for i in range(layer_n - 1):
-                # New Hidden Layer
-                layer_name = model_name + '_conv_' + str(i + 2)
-                filter_n = ncf * 2 ** (i + 1)
-                nn = Conv3D(filters=filter_n,
-                            kernel_size=kernel_size,
-                            strides=(2, 2, 2),
-                            padding='same',
-                            use_bias=True,
-                            kernel_initializer=init,
-                            name=layer_name)(nn)
-
-                nn = LeakyReLU(alpha=0.1)(nn)
-
-        # Flatten
-        nn = Flatten()(nn)
-
-        # Output Layer
-        layer_name = model_name + '_output_layer'
-        nnout = Dense(
-                units=1,
-                activation=activation,
-                name=layer_name,
-                kernel_initializer=init
-        )(nn)
-
-        # Create Model
-        model = Model(nnin, nnout, name=model_name)
-
-        # Return Model
-        return model
-
-
-def build_generator(ngf=32, kernel_size=5, layer_n=3, activation="linear", z_dims=(10,)):
-
-        # TODO: CLEAN GENERATOR CODE
-
-        # Input Layer
-        model_name = 'generator'
-        layer_name = model_name + '_z_input'
-        nnin = Input(shape=z_dims, name=layer_name)
-
-        # init model weights
-        init = tf.initializers.RandomNormal(stddev=0.02)
-
-        nn = Dense(4*4*4*ngf*(2**(layer_n)), kernel_initializer=init, use_bias=True)(nnin)
-        nn = Reshape((4, 4, 4, ngf*(2**layer_n)))(nn)
-        nn = LeakyReLU(alpha=0.1)(nn)
-
-        # Convolutional Layers
-        for i in range(layer_n - 1):
-                # New Hidden Layer
-                layer_name = model_name + '_conv_' + str(i + 1)
-                filter_n = ngf * 2 ** (layer_n - i - 1)
-                nn = Conv3DTranspose(filters=filter_n,
-                                     kernel_size=kernel_size,
-                                     strides=(4, 4, 4),
-                                     padding='same',
-                                     use_bias=True,
-                                     kernel_initializer=init,
-                                     name=layer_name)(nn)
-
-                nn = LeakyReLU(alpha=0.1)(nn)
-
-        # Output Layer
-        layer_name = model_name + '_output_layer'
-        nnout = Conv3DTranspose(
-                filters=1,
-                kernel_size=kernel_size,
-                strides=(3, 4, 3),
-                padding='same',
-                activation=activation,
-                use_bias=True,
-                kernel_initializer=init,
-                name=layer_name)(nn)
-
-        # Create Model
-        model = Model(nnin, nnout, name=model_name)
-
-        # Return Model
-        return model
-
-
 class DCWGAN(Model):
 
-        def __init__(self, generator, critic, g_lr=5e-5, c_lr=5e-5, gradient_penalty_weight = 10):
+        def __init__(self, generator, critic, g_lr=5e-5, c_lr=5e-5, gradient_penalty_weight=10):
                 super(DCWGAN, self).__init__()
 
                 # Set Parameters for training
 
-                self.z_units = generator.layers[0].output_shape[0][1]
+                self.z_units = generator.input.shape[1]
                 self.g_lr = g_lr  # generator learning rate
                 self.c_lr = c_lr  # discriminator learning rate
                 self.gradient_penalty_weight = gradient_penalty_weight  # interpolated image loss weight
@@ -145,14 +39,12 @@ class DCWGAN(Model):
                         layer.trainable = val
 
         def gradient_penalty_loss(self, real_data, generated_data):
-
                 # Get Number of instances of real data == Batch size
                 batch_size = real_data.shape[0]
                 alpha = tf.random.uniform((batch_size, 1))
                 inter_data = (alpha * real_data) + ((1 - alpha) * generated_data)
 
                 with tf.GradientTape() as g:
-
                         g.watch(inter_data)
                         logits_inter_data = self.critic(inter_data)
 
@@ -170,14 +62,12 @@ class DCWGAN(Model):
                 return tf.reduce_mean(gradient_penalty)
 
         def generate_data(self, n):
-
                 # Create random z vectors to feed generator
                 random_z_vectors = tf.random.normal(shape=(n, self.z_units))
                 generated_data = self.generator(random_z_vectors)
                 return generated_data
 
         def compute_generator_loss(self, batch_size):
-
                 # Get fake data to feed generator
                 generated_data = self.generate_data(batch_size)
                 # feed generator and get logits
@@ -188,7 +78,6 @@ class DCWGAN(Model):
                 return generator_loss
 
         def compute_generator_gradients(self, batch_size):
-
                 with tf.GradientTape() as gen_tape:
                         gen_loss = self.compute_generator_loss(batch_size)
                 # compute gradients
@@ -196,7 +85,6 @@ class DCWGAN(Model):
                 return gen_gradients
 
         def apply_generator_gradients(self, gradients):
-
                 """
                 Apply calculated gradients to update generator
                 :param gradients: generator gradients
@@ -207,7 +95,6 @@ class DCWGAN(Model):
                 )
 
         def compute_critic_loss(self, real_data):
-
                 """
                 passes through the network and computes loss
                 """
@@ -231,16 +118,15 @@ class DCWGAN(Model):
 
                 # losses
                 critic_loss = (
-                        tf.reduce_mean(logits_real_data)
-                        - tf.reduce_mean(logits_generated_data)
-                        + critic_regularizer
-                        * self.gradient_penalty_weight
+                                tf.reduce_mean(logits_real_data)
+                                - tf.reduce_mean(logits_generated_data)
+                                + critic_regularizer
+                                * self.gradient_penalty_weight
                 )
 
                 return critic_loss
 
         def compute_critic_gradients(self, real_data):
-
                 """
                 Compute Gradients to update generator and discriminator
                 :param real_data:
@@ -257,7 +143,6 @@ class DCWGAN(Model):
                 return critic_gradients
 
         def apply_critic_gradients(self, gradients):
-
                 """
                 Apply calculated gradients to update critic
                 :param gradients: critic gradients
@@ -281,10 +166,89 @@ class DCWGAN(Model):
 
 if __name__ == '__main__':
 
-        gen = build_generator()
-        critic = build_critic()
+        init = tf.initializers.RandomNormal(stddev=0.02)
+        generator = Sequential(
+                [       # Input
+                        Input(shape=(10,), name='z_input'),
+                        # 1st Deconvolution
+                        Dense(4 * 4 * 4 * 128),
+                        LeakyReLU(alpha=0.2, name='lrelu_1'),
+                        Reshape((4, 4, 4, 128), name="conv_1"),
+                        # 2nd Deconvolution
+                        Conv3DTranspose(
+                                filters=64,
+                                kernel_size=5,
+                                strides=(4, 4, 4),
+                                kernel_initializer=init,
+                                use_bias=True,
+                                padding="same",
+                                name="conv_2"),
+                        LeakyReLU(alpha=0.2, name='lrelu_2'),
+                        # 3rd Deconvolution
+                        Conv3DTranspose(
+                                filters=32,
+                                kernel_size=5,
+                                strides=(4, 4, 4),
+                                kernel_initializer=init,
+                                use_bias=True,
+                                padding='same',
+                                name="conv_3"),
+                        LeakyReLU(alpha=0.2, name='lrelu_3'),
+                        # Output
+                        Conv3DTranspose(
+                                filters=1,
+                                kernel_size=5,
+                                strides=(3, 4, 3),
+                                kernel_initializer=init,
+                                activation='linear',
+                                use_bias=True,
+                                padding='same',
+                                name='output')
+                ],
+                name="generator",
+        )
 
-        wgan = DCWGAN(generator=gen, critic=critic)
+        critic = Sequential(
+                [       # Input
+                        Input(shape=(192, 256, 192, 1), name='input'),
+                        # 1st Convolution
+                        Conv3D(
+                                filters=32,
+                                kernel_size=5,
+                                strides=(3, 4, 3),
+                                kernel_initializer=init,
+                                use_bias=True,
+                                padding="same",
+                                name="conv_1"),
+                        LeakyReLU(alpha=0.2, name='lrelu_1'),
+                        # 2nd Convolution
+                        Conv3D(
+                                filters=64,
+                                kernel_size=5,
+                                strides=(4, 4, 4),
+                                kernel_initializer=init,
+                                use_bias=True,
+                                padding='same',
+                                name="conv_2"),
+                        LeakyReLU(alpha=0.2, name='lrelu_2'),
+                        # 3rd Convolution
+                        Conv3D(
+                                filters=128,
+                                kernel_size=5,
+                                strides=(4, 4, 4),
+                                kernel_initializer=init,
+                                use_bias=True,
+                                padding='same',
+                                name='conv_3'),
+                        LeakyReLU(alpha=0.2, name='lrelu_3'),
+                        # Output
+                        Flatten(),
+                        Dense(1, activation=None, name='output', kernel_initializer=init)
+                ],
+                name="critic",
+        )
+
+        wgan = DCWGAN(generator=generator, critic=critic)
 
         IMAGE_FILE = 'brain.mnc'
         IMAGE_PATH = path.join('..', 'resources', 'mri', IMAGE_FILE)
@@ -312,7 +276,6 @@ if __name__ == '__main__':
 
                 # Train Critic
                 for _ in range(c_loops):
-
                         # TODO: Import real images Batch
                         img = nib.load(IMAGE_PATH)
                         data = img.get_fdata()
