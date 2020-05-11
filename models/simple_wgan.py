@@ -24,7 +24,7 @@ def wasserstein_loss(y, y_hat):
 def generator_train_step(batch_size, generator, d_of_g):
 
         """
-        Perform Batch training step on Generator
+        Perform Batch data step on Generator
         :param batch_size: int, batch length
         :param generator: generator keras model
         :param d_of_g: discriminator(generator) keras model
@@ -42,17 +42,17 @@ def generator_train_step(batch_size, generator, d_of_g):
 
         # Create random z vectors to feed generator
         random_z_vectors = tf.random.normal(shape=(batch_size, generator_input_dim))
-        # Train generator and get loss for training tracking
+        # Train generator and get loss for data tracking
         generator_loss = d_of_g.train_on_batch(random_z_vectors, true_labels)
 
-        # Return losses to track training
+        # Return losses to track data
         return generator_loss
 
 
 def discriminator_train_step(data, generator, discriminator, clip_value=0.01):
 
         """
-        Performs Batch training on Discriminator
+        Performs Batch data on Discriminator
         :param data: array of 2d coordinates, real data sample
         :param generator: generator model
         :param discriminator: discriminator model
@@ -62,7 +62,7 @@ def discriminator_train_step(data, generator, discriminator, clip_value=0.01):
         :return: generator and discriminator losses
         """
 
-        # Convert training data to tensor
+        # Convert data data to tensor
         real_data = tf.convert_to_tensor(data, dtype=tf.float32)
         # Get Number of instances of real data == Batch size
         batch_size = tf.shape(data)[0]
@@ -86,7 +86,7 @@ def discriminator_train_step(data, generator, discriminator, clip_value=0.01):
                 weights = [clip(w, -clip_value, clip_value) for w in weights]
                 layer.set_weights(weights)
 
-        # Train discriminator and get loss for training tracking
+        # Train discriminator and get loss for data tracking
         # discriminator_loss = discriminator.train_on_batch(combined_data, labels)
         true_discriminator_loss = discriminator.train_on_batch(real_data, true_labels)
         fake_discriminator_loss = discriminator.train_on_batch(generated_data, fake_labels)
@@ -97,7 +97,7 @@ def discriminator_train_step(data, generator, discriminator, clip_value=0.01):
 
 if __name__ == '__main__':
 
-        # Set Parameters for training
+        # Set Parameters for data
 
         epochs = 20001  # Training Epochs
         z_dim = 10  # Generator Input units
@@ -145,24 +145,24 @@ if __name__ == '__main__':
 
         gan.summary()  # Show GAN Architecture
 
-        # Set Parameters for training tracking and training evaluation
+        # Set Parameters for data tracking and data evaluation
         # Random vectors to control generator evolution
         control_z_vectors = tf.random.normal(shape=(batch_size, 10))
         # Get quadratic distributed data (-1, 1)
         real_distribution = get_quadratic_data_sample(batch_size, add_noise=False)
 
-        # Set Tensorboard Directory to track training
+        # Set Tensorboard Directory to track data
         time = strftime("%d-%b-%H%M", localtime())
         log_dir = path.join('..', 'logs', 'simple_wgan', time)
 
-        # Initialize Keras metrics to track training
+        # Initialize Keras metrics to track data
         generator_train_loss = tf.keras.metrics.Mean('generator_train_loss', dtype=tf.float32)
         discriminator_train_loss = tf.keras.metrics.Mean('discriminator_train_loss', dtype=tf.float32)
 
         # Create Scope in order to set Tensorboard hyperparameters
         with tf.name_scope("Simple WGan Training") as scope:
 
-                # Start model training tracing (logs)
+                # Start model data tracing (logs)
                 tf.summary.trace_on()
                 summary_writer = tf.summary.create_file_writer(log_dir)
 
@@ -181,7 +181,7 @@ if __name__ == '__main__':
                         for _ in range(d_epochs):
                                 # Collect data
                                 real_data = get_quadratic_data_sample(batch_size)
-                                # Train gan: Perform batch training on D with the collected data
+                                # Train gan: Perform batch data on D with the collected data
                                 d_loss = discriminator_train_step(real_data, generator, discriminator, clip_value=0.2)
 
                         # --------------------
@@ -220,13 +220,13 @@ if __name__ == '__main__':
                                 image = tf.image.decode_png(buf.getvalue(), channels=4)
                                 # Add the batch dimension
                                 image = tf.expand_dims(image, 0)
-                                # track training through console
+                                # track data through console
                                 template = 'Epoch {}, Gen Loss: {}, Dis Loss {}'
                                 print(template.format(e + 1,
                                                       generator_train_loss.result(),
                                                       discriminator_train_loss.result()))
 
-                        # Write training into Tensorboard
+                        # Write data into Tensorboard
                         with summary_writer.as_default():
                                 # Write losses
                                 tf.summary.scalar('Generator Loss',
@@ -242,6 +242,6 @@ if __name__ == '__main__':
                                 # Write image of real and generated data distribution into Tensorboard
                                 if e % plot_interval == 0: tf.summary.image('Comparison', image, step=e)
 
-        # Stop training tracing
+        # Stop data tracing
         tf.summary.trace_off()
         save_models(discriminator, generator, gan, 'simple_wgan')

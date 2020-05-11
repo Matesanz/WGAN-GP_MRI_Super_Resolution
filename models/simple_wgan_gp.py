@@ -82,7 +82,7 @@ def build_adversarial(generator, critic, batch_size):
         Builds critic and generator graph
         :param generator: generator Keras Model
         :param critic: critic Keras Model
-        :param batch_size: int, length of batch during training
+        :param batch_size: int, length of batch during data
         :return: Critic and Generator Models
         """
 
@@ -178,7 +178,7 @@ def build_adversarial(generator, critic, batch_size):
 
 def generator_train_step(batch_size, generator, generator_graph):
         """
-        Perform Batch training step on Generator
+        Perform Batch data step on Generator
         :param batch_size: int, batch length
         :param generator: generator keras model
         :param generator_graph: discriminator(generator(z_input)) keras model
@@ -196,16 +196,16 @@ def generator_train_step(batch_size, generator, generator_graph):
 
         # Create random z vectors to feed generator
         random_z_vectors = tf.random.normal(shape=(batch_size, generator_input_dim))
-        # Train generator and get loss for training tracking
+        # Train generator and get loss for data tracking
         generator_loss = generator_graph.train_on_batch(random_z_vectors, true_labels)
 
-        # Return losses to track training
+        # Return losses to track data
         return generator_loss
 
 
 def critic_train_step(data, critic_graph, generator):
         """
-        Performs Batch training on Critic
+        Performs Batch data on Critic
         :param data: array of 2d coordinates, real data sample
         :param critic_graph: gan model
         :param generator: generator model
@@ -217,7 +217,7 @@ def critic_train_step(data, critic_graph, generator):
         # Get length of z vector
         generator_input_dim = generator.input.shape[1]
 
-        # Convert training data to tensor
+        # Convert data data to tensor
         real_data = data
         # real_data = tf.convert_to_tensor(data, dtype=tf.float32)
         # Create z vectors to feed generator # tip: use normal dist, not uniform.
@@ -228,7 +228,7 @@ def critic_train_step(data, critic_graph, generator):
         fake_labels = -true_labels
         dummy_labels = tf.zeros((batch_size, 1))
 
-        # Train critic and get loss for training tracking
+        # Train critic and get loss for data tracking
         # discriminator_loss = discriminator.train_on_batch(combined_data, labels)
         critic_loss = critic_graph.train_on_batch(
                 [real_data, random_z_vectors],  # feeding inputs of the graph
@@ -254,7 +254,7 @@ def adversarial_train_step(data, critic_graph, generator_graph, generator, epoch
 
 if __name__ == '__main__':
 
-        # Set Parameters for training
+        # Set Parameters for data
 
         epochs = 20001  # Training Epochs
         z_dim = 10  # Generator Input units
@@ -325,7 +325,7 @@ if __name__ == '__main__':
                 generator_train_loss(g_loss)
                 critic_train_loss(c_loss)
 
-                # track training through console
+                # track data through console
                 template = 'Epoch {}, Gen Loss: {}, Dis Loss {}'
                 print(template.format(e + 1,
                                       generator_train_loss.result(),

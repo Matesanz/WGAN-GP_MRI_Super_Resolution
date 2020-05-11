@@ -1,7 +1,8 @@
-from numpy import array, ndarray, zeros, pad, floor, ceil, ones, int64
+from numpy import array, ndarray, zeros, pad, floor, ceil, ones, expand_dims, save, asarray, load
 from matplotlib.pyplot import imshow, show
 import nibabel as nib
-from os import path
+from os import path, listdir
+from scipy.ndimage import zoom
 
 
 def nearest_upper_multiple(number, base):
@@ -37,15 +38,59 @@ def pad_image(img: array, multiple=64):
         return res_image
 
 
+def mnc_to_npy(mnc_file):
+
+        data = mnc_file.get_fdata()
+        # data = data.reshape((192, 256, 192, 1))
+        data = data.astype('float32')
+        return data
+
+
+def process_mnc_files(path_origin, path_dest):
+
+
+        for filename in listdir(path_origin):
+                mnc_path = path.join(path_origin, filename)
+                mnc = nib.load(mnc_path)
+
+                img = mnc_to_npy(mnc)
+                procc_img = pad_image(img)
+                procc_img = expand_dims(procc_img, 3)
+                name = path.splitext(filename)[0]
+
+
+                npy_path = path.join(path_dest, name)
+                save(npy_path, procc_img)
+
+def process_mnc(path):
+
+        mnc = nib.load(path)
+        img = mnc_to_npy(mnc)
+        procc_img = pad_image(img)
+        procc_img = expand_dims(procc_img, 3)
+
+        return procc_img
+
+
 if __name__ == '__main__':
 
-    image = ones(shape=(181,217,181)) * 150
-    IMAGE_FILE = 'brain.mnc'
-    IMAGE_PATH = path.join('..', 'resources', 'mri', IMAGE_FILE)
+    # image = ones(shape=(181,217,181)) * 150
+    # IMAGE_FILE = 'brain.mnc'
+    # IMAGE_PATH = path.join('..', 'resources', 'mri', IMAGE_FILE)
+    #
+    # img = nib.load(IMAGE_PATH)
+    # data = img.get_fdata()
+    #
+    # a = pad_image(data, 64)
+    # a = zoom(a, (1/12, 1/16, 1/12))
+    #
+    # imshow(a[8])
+    # show()
 
-    img = nib.load(IMAGE_PATH)
-    data = img.get_fdata()
-
-    a = pad_image(data, 64)
-    imshow(a[90])
-    show()
+    PATH = path.join('..', 'resources', 'mri')
+    DEST_PATH = path.join('..', 'resources', 'data')
+    process_mnc_files(PATH, DEST_PATH)
+    # DEST_PATH = path.join('..', 'resources', 'data', 'images.npy')
+    #
+    # img = load(DEST_PATH)
+    # print(img)

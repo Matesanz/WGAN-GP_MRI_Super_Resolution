@@ -16,7 +16,7 @@ class Simple_WGAN(Model):
                 super(Simple_WGAN, self).__init__()
 
 
-                # Set Parameters for training
+                # Set Parameters for data
                 self.z_units = z_units  # Generator Input units
                 self.layers_n = layers_n  # Number of hidden layers
                 self.g_out_dim = gout_units  # Generator Output Units == Discriminator Input Units
@@ -125,7 +125,7 @@ class Simple_WGAN(Model):
                 # Get Number of instances of real data == Batch size
                 batch_size = real_data.shape[0]
 
-                # Convert numpy training data to tensor
+                # Convert numpy data data to tensor
                 real_data = tf.convert_to_tensor(real_data, dtype=tf.float32)
 
                 # Create random z vectors to feed generator
@@ -214,10 +214,10 @@ if __name__ == '__main__':
         # --------------------
         generator_train_loss = tf.keras.metrics.Mean('generator_train_loss', dtype=tf.float32)
         critic_train_loss = tf.keras.metrics.Mean('critic_train_loss', dtype=tf.float32)
-        # Set Tensorboard Directory to track training
+        # Set Tensorboard Directory to track data
         time = strftime("%d-%b-%H%M", localtime())
         log_dir = path.join('..', 'logs', 'simple_wgan', time)
-        # Start model training tracing (logs)
+        # Start model data tracing (logs)
         summary_writer = tf.summary.create_file_writer(log_dir)
         # tf.summary.trace_on(graph=True, profiler=True)
 
@@ -237,7 +237,7 @@ if __name__ == '__main__':
 
                 # Train Generator
                 wgan.train_generator(batch_size)  # Train our model on real distribution points
-                c_loss= wgan.compute_critic_loss(training_data)  # Get batch loss to track training
+                c_loss= wgan.compute_critic_loss(training_data)  # Get batch loss to track data
                 g_loss = wgan.compute_generator_loss(batch_size)
 
                 # -----------------------
@@ -248,7 +248,7 @@ if __name__ == '__main__':
                 generator_train_loss(g_loss)
                 critic_train_loss(c_loss)
 
-                # track training through console
+                # track data through console
                 template = 'Epoch {}, Gen Loss: {}, Dis Loss {}'
                 print(template.format(epoch + 1,
                                       generator_train_loss.result(),

@@ -41,8 +41,8 @@ if __name__ == '__main__':
                 # ----------------------
 
                 wgan.train_generator(batch_size)  # Train our model on real distribution points
-                c_loss= wgan.compute_critic_loss(training_data)  # Get critic batch loss to track training
-                g_loss = wgan.compute_generator_loss(batch_size)  # Get generator batch loss to track training
+                c_loss= wgan.compute_critic_loss(training_data)  # Get critic batch loss to track data
+                g_loss = wgan.compute_generator_loss(batch_size)  # Get generator batch loss to track data
 
                 # ----------------------
                 #     PRINT TRAINING

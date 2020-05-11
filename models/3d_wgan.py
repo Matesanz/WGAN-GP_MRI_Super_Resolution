@@ -1,12 +1,10 @@
 from os import path
 import nibabel as nib
-from time import strftime, localtime
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Input, Conv3DTranspose, Reshape, LeakyReLU, Flatten, Conv3D
 from tensorflow.keras.optimizers import Adam
-from utils.simple_data_generator import get_quadratic_data_sample, plot_quadratic_data
 import numpy as np
 from utils.imutils import pad_image
 
@@ -16,7 +14,7 @@ class DCWGAN(Model):
         def __init__(self, generator, critic, g_lr=5e-5, c_lr=5e-5, gradient_penalty_weight=10):
                 super(DCWGAN, self).__init__()
 
-                # Set Parameters for training
+                # Set Parameters for data
 
                 self.z_units = generator.input.shape[1]
                 self.g_lr = g_lr  # generator learning rate
@@ -102,7 +100,7 @@ class DCWGAN(Model):
                 # Get Number of instances of real data == Batch size
                 batch_size = real_data.shape[0]
 
-                # Convert numpy training data to tensor
+                # Convert numpy data data to tensor
                 real_data = tf.convert_to_tensor(real_data, dtype=tf.float32)
 
                 # Create random z vectors to feed generator
@@ -288,7 +286,7 @@ if __name__ == '__main__':
 
                 # Train Generator
                 wgan.train_generator(batch_size)  # Train our model on real distribution points
-                c_loss = wgan.compute_critic_loss(training_data)  # Get batch loss to track training
+                c_loss = wgan.compute_critic_loss(training_data)  # Get batch loss to track data
                 g_loss = wgan.compute_generator_loss(batch_size)
 
                 # -----------------------
@@ -299,7 +297,7 @@ if __name__ == '__main__':
                 generator_train_loss(g_loss)
                 critic_train_loss(c_loss)
 
-                # track training through console
+                # track data through console
                 template = 'Epoch {}, Gen Loss: {}, Dis Loss {}'
                 print(template.format(epoch + 1,
                                       generator_train_loss.result(),
