@@ -7,6 +7,7 @@ from tensorflow.keras.layers import Dense, Input, Conv3DTranspose, Reshape, Leak
 from tensorflow.keras.optimizers import Adam
 import numpy as np
 from utils.imutils import pad_image
+from utils.training import DataGenerator
 
 
 class DCWGAN(Model):
@@ -39,7 +40,7 @@ class DCWGAN(Model):
         def gradient_penalty_loss(self, real_data, generated_data):
                 # Get Number of instances of real data == Batch size
                 batch_size = real_data.shape[0]
-                alpha = tf.random.uniform((batch_size, 1))
+                alpha = tf.random.uniform((batch_size, 1, 1, 1, 1))  # alpha shape matches 3d data
                 inter_data = (alpha * real_data) + ((1 - alpha) * generated_data)
 
                 with tf.GradientTape() as g:
@@ -80,7 +81,7 @@ class DCWGAN(Model):
                         gen_loss = self.compute_generator_loss(batch_size)
                 # compute gradients
                 gen_gradients = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
-                return gen_gradients
+                return gen_gradients, gen_loss
 
         def apply_generator_gradients(self, gradients):
                 """
@@ -138,7 +139,7 @@ class DCWGAN(Model):
                 # compute gradients
                 critic_gradients = critic_tape.gradient(critic_loss, self.critic.trainable_variables)
 
-                return critic_gradients
+                return critic_gradients, critic_loss
 
         def apply_critic_gradients(self, gradients):
                 """
@@ -153,13 +154,15 @@ class DCWGAN(Model):
 
         @tf.function
         def train_generator(self, batch_size):
-                gen_gradients = self.compute_generator_gradients(batch_size)
+                gen_gradients, gen_loss = self.compute_generator_gradients(batch_size)
                 self.apply_generator_gradients(gen_gradients)
+                return gen_loss
 
         @tf.function
         def train_critic(self, real_data):
-                critic_gradients = self.compute_critic_gradients(real_data)
+                critic_gradients, critic_loss = self.compute_critic_gradients(real_data)
                 self.apply_critic_gradients(critic_gradients)
+                return critic_loss
 
 
 if __name__ == '__main__':
@@ -249,13 +252,14 @@ if __name__ == '__main__':
         wgan = DCWGAN(generator=generator, critic=critic)
 
         IMAGE_FILE = 'brain.mnc'
-        IMAGE_PATH = path.join('..', 'resources', 'mri', IMAGE_FILE)
-
+        # IMAGE_PATH = path.join('..', 'resources', 'mri', IMAGE_FILE)
+        IMAGE_PATH = path.join('..', 'resources', 'mri')
+        data_generator = DataGenerator(IMAGE_PATH)
         # --------------------
         #  PARAMETER INIT
         # --------------------
 
-        batch_size = 1  # Samples every epoch
+        batch_size = 4  # Samples every epoch
         n_epochs = 10  # Training Epochs
         plot_interval = 10  # Every plot_interval create a graph with real and generated data distribution
         c_loops = 5  # number of loops to train critic every epoch
@@ -274,20 +278,12 @@ if __name__ == '__main__':
 
                 # Train Critic
                 for _ in range(c_loops):
-                        # TODO: Import real images Batch
-                        img = nib.load(IMAGE_PATH)
-                        data = img.get_fdata()
-                        data = pad_image(data)
-                        data = data.reshape((192, 256, 192, 1))
-                        training_data = np.expand_dims(data, 0)
-                        training_data = training_data.astype(np.float32)
 
-                        wgan.train_critic(training_data)
+                        batch = data_generator.get_batch(batch_size)
+                        c_loss = wgan.train_critic(batch)
 
                 # Train Generator
-                wgan.train_generator(batch_size)  # Train our model on real distribution points
-                c_loss = wgan.compute_critic_loss(training_data)  # Get batch loss to track data
-                g_loss = wgan.compute_generator_loss(batch_size)
+                g_loss = wgan.train_generator(batch_size)  # Train our model on real distribution points
 
                 # -----------------------
                 #  TENSORBOARD TRACKING
