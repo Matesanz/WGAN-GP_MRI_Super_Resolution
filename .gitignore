@@ -3,4 +3,5 @@
 /logs
 /animation.gif
 /models/animation.gif
-/resources/mri/brain2.mnc
+/resources/data/
+/resources/mri/*
