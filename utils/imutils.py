@@ -2,7 +2,7 @@ from numpy import array, ndarray, zeros, pad, floor, ceil, ones, expand_dims, sa
 from matplotlib.pyplot import imshow, show
 import nibabel as nib
 from os import path, listdir
-from scipy.ndimage import zoom
+from scipy.ndimage.interpolation import zoom
 
 
 def nearest_upper_multiple(number, base):
@@ -72,11 +72,27 @@ def process_mnc(path):
         return procc_img
 
 
+def norm_image(img):
+        img -= img.min()
+        return (img / img.max()) * 2 - 1
+
+
+def process_mnc_and_reduce(file_path):
+        mnc = nib.load(file_path)
+        img = mnc_to_npy(mnc)
+        img = pad_image(img)
+        img = zoom(img, (1/12, 1/16, 1/12), order=2)
+        img = norm_image(img)
+        img = expand_dims(img, 3)
+        return img
+
+
 if __name__ == '__main__':
 
     # image = ones(shape=(181,217,181)) * 150
-    # IMAGE_FILE = 'brain.mnc'
-    # IMAGE_PATH = path.join('..', 'resources', 'mri', IMAGE_FILE)
+    IMAGE_FILE = 'brain.mnc'
+    IMAGE_PATH = path.join('..', 'resources', 'mri', IMAGE_FILE)
+    img = process_mnc_and_reduce(IMAGE_PATH)
     #
     # img = nib.load(IMAGE_PATH)
     # data = img.get_fdata()
@@ -87,10 +103,10 @@ if __name__ == '__main__':
     # imshow(a[8])
     # show()
 
-    PATH = path.join('..', 'resources', 'mri')
-    DEST_PATH = path.join('..', 'resources', 'data')
-    process_mnc_files(PATH, DEST_PATH)
+    # PATH = path.join('..', 'resources', 'mri')
+    # DEST_PATH = path.join('..', 'resources', 'data')
+    # process_mnc_files(PATH, DEST_PATH)
     # DEST_PATH = path.join('..', 'resources', 'data', 'images.npy')
     #
     # img = load(DEST_PATH)
-    # print(img)
+    print(img)
