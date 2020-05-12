@@ -1,6 +1,6 @@
 from time import strftime, localtime
 from os import path, listdir
-from utils.imutils import process_mnc
+from utils.imutils import process_mnc, process_mnc_and_reduce
 from numpy import asarray
 
 
@@ -21,9 +21,10 @@ def save_models(d, g, d_of_g, folder_name):
 
 class DataGenerator:
 
-        def __init__(self, folder_path):
+        def __init__(self, folder_path, preprocess_fn):
                 self.folder_path = folder_path
-                self.data_generator = (process_mnc(path.join(folder_path, filename)) for filename in listdir(folder_path))
+                self.preprocess_fn = preprocess_fn
+                self.data_generator = (preprocess_fn(path.join(folder_path, filename)) for filename in listdir(folder_path))
                 self.data_length = len(listdir(folder_path))
                 self.data_taken = 0
 
@@ -43,7 +44,9 @@ class DataGenerator:
                 # print("generator reseted")
                 self.data_taken = 0
                 self.data_generator = (
-                        process_mnc(path.join(self.folder_path, filename)) for filename in listdir(self.folder_path)
+                        self.preprocess_fn(
+                                path.join(self.folder_path, filename)
+                        ) for filename in listdir(self.folder_path)
                 )
 
 
@@ -51,5 +54,5 @@ class DataGenerator:
 if __name__ == '__main__':
 
         PATH = path.join('..', 'resources', 'mri')
-        data_generator = DataGenerator(PATH)
+        data_generator = DataGenerator(PATH, process_mnc_and_reduce)
         data_generator.get_batch(2)
