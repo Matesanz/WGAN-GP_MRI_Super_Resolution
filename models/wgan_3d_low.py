@@ -9,94 +9,93 @@ from utils.imutils import process_mnc_and_reduce
 from utils.minc_viewer import Viewer
 from models.wgan_3d import DCWGAN
 
+# Initialize NN weights
+init = tf.initializers.RandomNormal(stddev=0.02)
+
+# Create generator Graph
+generator = Sequential(
+        [       # Input
+                Input(shape=(10,), name='z_input'),
+                # 1st Deconvolution
+                Dense(2 * 2 * 2 * 128),
+                LeakyReLU(alpha=0.2, name='lrelu_1'),
+                Reshape((2, 2, 2, 128), name="conv_1"),
+                # 2nd Deconvolution
+                Conv3DTranspose(
+                        filters=64,
+                        kernel_size=5,
+                        strides=(2, 2, 2),
+                        kernel_initializer=init,
+                        use_bias=True,
+                        padding="same",
+                        name="conv_2"),
+                LeakyReLU(alpha=0.2, name='lrelu_2'),
+                # 3rd Deconvolution
+                Conv3DTranspose(
+                        filters=32,
+                        kernel_size=5,
+                        strides=(2, 2, 2),
+                        kernel_initializer=init,
+                        use_bias=True,
+                        padding='same',
+                        name="conv_3"),
+                LeakyReLU(alpha=0.2, name='lrelu_3'),
+                # Output
+                Conv3DTranspose(
+                        filters=1,
+                        kernel_size=5,
+                        strides=(2, 2, 2),
+                        kernel_initializer=init,
+                        activation='linear',
+                        use_bias=True,
+                        padding='same',
+                        name='output')
+        ],
+        name="generator",
+)
+
+# Create critic Graph
+critic = Sequential(
+        [       # Input
+                Input(shape=(16, 16, 16, 1), name='input'),
+                # 1st Convolution
+                Conv3D(
+                        filters=32,
+                        kernel_size=5,
+                        strides=(2, 2, 2),
+                        kernel_initializer=init,
+                        use_bias=True,
+                        padding="same",
+                        name="conv_1"),
+                LeakyReLU(alpha=0.2, name='lrelu_1'),
+                # 2nd Convolution
+                Conv3D(
+                        filters=64,
+                        kernel_size=5,
+                        strides=(2, 2, 2),
+                        kernel_initializer=init,
+                        use_bias=True,
+                        padding='same',
+                        name="conv_2"),
+                LeakyReLU(alpha=0.2, name='lrelu_2'),
+                # 3rd Convolution
+                Conv3D(
+                        filters=128,
+                        kernel_size=5,
+                        strides=(2, 2, 2),
+                        kernel_initializer=init,
+                        use_bias=True,
+                        padding='same',
+                        name='conv_3'),
+                LeakyReLU(alpha=0.2, name='lrelu_3'),
+                # Output
+                Flatten(),
+                Dense(1, activation=None, name='output', kernel_initializer=init)
+        ],
+        name="critic",
+)
 
 if __name__ == '__main__':
-
-        # Initialize NN weights
-        init = tf.initializers.RandomNormal(stddev=0.02)
-
-        # Create generator Graph
-        generator = Sequential(
-                [       # Input
-                        Input(shape=(10,), name='z_input'),
-                        # 1st Deconvolution
-                        Dense(2 * 2 * 2 * 128),
-                        LeakyReLU(alpha=0.2, name='lrelu_1'),
-                        Reshape((2, 2, 2, 128), name="conv_1"),
-                        # 2nd Deconvolution
-                        Conv3DTranspose(
-                                filters=64,
-                                kernel_size=5,
-                                strides=(2, 2, 2),
-                                kernel_initializer=init,
-                                use_bias=True,
-                                padding="same",
-                                name="conv_2"),
-                        LeakyReLU(alpha=0.2, name='lrelu_2'),
-                        # 3rd Deconvolution
-                        Conv3DTranspose(
-                                filters=32,
-                                kernel_size=5,
-                                strides=(2, 2, 2),
-                                kernel_initializer=init,
-                                use_bias=True,
-                                padding='same',
-                                name="conv_3"),
-                        LeakyReLU(alpha=0.2, name='lrelu_3'),
-                        # Output
-                        Conv3DTranspose(
-                                filters=1,
-                                kernel_size=5,
-                                strides=(2, 2, 2),
-                                kernel_initializer=init,
-                                activation='linear',
-                                use_bias=True,
-                                padding='same',
-                                name='output')
-                ],
-                name="generator",
-        )
-
-        # Create critic Graph
-        critic = Sequential(
-                [       # Input
-                        Input(shape=(16, 16, 16, 1), name='input'),
-                        # 1st Convolution
-                        Conv3D(
-                                filters=32,
-                                kernel_size=5,
-                                strides=(2, 2, 2),
-                                kernel_initializer=init,
-                                use_bias=True,
-                                padding="same",
-                                name="conv_1"),
-                        LeakyReLU(alpha=0.2, name='lrelu_1'),
-                        # 2nd Convolution
-                        Conv3D(
-                                filters=64,
-                                kernel_size=5,
-                                strides=(2, 2, 2),
-                                kernel_initializer=init,
-                                use_bias=True,
-                                padding='same',
-                                name="conv_2"),
-                        LeakyReLU(alpha=0.2, name='lrelu_2'),
-                        # 3rd Convolution
-                        Conv3D(
-                                filters=128,
-                                kernel_size=5,
-                                strides=(2, 2, 2),
-                                kernel_initializer=init,
-                                use_bias=True,
-                                padding='same',
-                                name='conv_3'),
-                        LeakyReLU(alpha=0.2, name='lrelu_3'),
-                        # Output
-                        Flatten(),
-                        Dense(1, activation=None, name='output', kernel_initializer=init)
-                ],
-                name="critic",
-        )
 
         # Create adversarial graph
         gen_opt = Adam()

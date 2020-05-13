@@ -1,61 +1,79 @@
-from models.simple_wgan_gp_II import Simple_WGAN
-from utils.simple_data_generator import get_quadratic_data_sample, plot_quadratic_data
+from os import path
+from numpy import squeeze
+import tensorflow as tf
+from tensorflow.keras.optimizers import Adam
+from utils.training import DataGenerator, save_models
+from utils.imutils import process_mnc_and_reduce
+from utils.minc_viewer import Viewer
+from models.wgan_3d_low import critic, generator
+from models.wgan_3d import DCWGAN
+
 
 if __name__ == '__main__':
+        
+        # load weights
+        critic.load_weights("models/weights/dc_wgan_low/critic_dc_wgan_low.h5")
+        generator.load_weights("models/weights/dc_wgan_low/generator_dc_wgan_low.h5")
+        
+        # Create adversarial graph
+        gen_opt = Adam()
+        critic_opt = Adam()
+        wgan = DCWGAN(generator=generator, critic=critic, g_opt=gen_opt, c_opt=critic_opt)
+
+        # Path to mnc files
+        IMAGES_PATH = path.join('..', 'resources', 'mri')
+        data_generator = DataGenerator(IMAGES_PATH, process_mnc_and_reduce)
 
         # --------------------
         #  PARAMETER INIT
         # --------------------
 
-        # Training Parameters
-        n_epochs = 1000  # Training Epochs
-        batch_size = 64  # Samples every epoch
-        c_loops = 5  # number of loops to train critic every epoch, 5 according to paper
-
-        # Networks Parameters
-        layers_n = 4  # number of generator and critic hidden layers
-        hidden_layer_units = 16  # number of generator and critic hidden layers units
-
-        # Build GAN
-        wgan = Simple_WGAN(
-                layers_n=4,
-                hidden_units=hidden_layer_units,
-        )
+        batch_size = 4  # Samples every epoch
+        n_epochs = 1  # Training Epochs
+        plot_interval = 10  # Every plot_interval create a graph with real and generated data distribution
+        c_loops = 5  # number of loops to train critic every epoch
+        z_control = tf.random.normal((batch_size, wgan.z_units))  # Vector to feed gen and control training evolution
 
         # --------------------
-        #     TRAINING
+        #  TENSORBOARD SETUP
         # --------------------
+        generator_train_loss = tf.keras.metrics.Mean('generator_train_loss', dtype=tf.float32)
+        critic_train_loss = tf.keras.metrics.Mean('critic_train_loss', dtype=tf.float32)
 
         for epoch in range(n_epochs):
 
                 # --------------------
-                #     TRAIN CRITIC
+                #     TRAINING
                 # --------------------
 
+                # Train Critic
                 for _ in range(c_loops):
-                        training_data = get_quadratic_data_sample(batch_size)  # Get points from real distribution
-                        wgan.train_critic(training_data)
 
-                # ----------------------
-                #     TRAIN GENERATOR
-                # ----------------------
+                        batch = data_generator.get_batch(batch_size)  # Collects Batch of real images
+                        c_loss = wgan.train_critic(batch)  # Train and get critic loss
 
-                wgan.train_generator(batch_size)  # Train our model on real distribution points
-                c_loss= wgan.compute_critic_loss(training_data)  # Get critic batch loss to track data
-                g_loss = wgan.compute_generator_loss(batch_size)  # Get generator batch loss to track data
+                # Train Generator
+                g_loss = wgan.train_generator(batch_size)  # Train our model on real distribution points
 
-                # ----------------------
-                #     PRINT TRAINING
-                # ----------------------
+                # -----------------------
+                #  TENSORBOARD TRACKING
+                # ------------------------
 
+                # Save generator and critic losses
+                generator_train_loss(g_loss)
+                critic_train_loss(c_loss)
+
+                # track data through console
                 template = 'Epoch {}, Gen Loss: {}, Dis Loss {}'
-                print(template.format(epoch + 1, g_loss, c_loss))
+                print(template.format(epoch + 1,
+                                      generator_train_loss.result(),
+                                      critic_train_loss.result()))
 
-        # ------------------------------------------------
-        #     PLOT DISTRIBUTIONS AT THE END OF TRAINING
-        # ------------------------------------------------
+        # save models after training
+        save_models(critic, generator, None, "dc_wgan")
 
-        real = get_quadratic_data_sample(batch_size)
-        fake = wgan.generate_data(batch_size)
-        plot_quadratic_data(real, show=False)
-        plot_quadratic_data(fake.numpy())
+        # generate fake sample to visualize
+        fake = generator(z_control)[0]
+        fake = squeeze(fake, 3)
+        print(fake.min(), fake.max())
+        Viewer(fake)
