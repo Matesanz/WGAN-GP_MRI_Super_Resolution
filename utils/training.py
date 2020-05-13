@@ -1,25 +1,40 @@
 from time import strftime, localtime
 from os import path, listdir
-from utils.imutils import process_mnc, process_mnc_and_reduce
 from numpy import asarray
 
 
 def save_models(d, g, d_of_g, folder_name):
 
+        """
+        Saves generator, discriminator and gan model into folder
+        :param d: keras model, discriminator
+        :param g: keras model, generator
+        :param d_of_g: keras model, D of G
+        :param folder_name: str, destiny path
+        """
+
         time = strftime("%d-%b-%H%M", localtime())
         # Save Models
-        gan_name = 'gan_model_' + time + '.h5'
         generator_name = 'generator_model_' + time + '.h5'
         discriminator_name = 'discriminator_model_' + time + '.h5'
-        gan_path = path.join('weights', folder_name, gan_name)
         generator_path = path.join('weights', folder_name, generator_name)
         discriminator_path = path.join('weights', folder_name, discriminator_name)
-        d_of_g.save(gan_path)
         g.save(generator_path)
         d.save(discriminator_path)
 
+        if d_of_g is not None:
+                gan_name = 'gan_model_' + time + '.h5'
+                gan_path = path.join('weights', folder_name, gan_name)
+                d_of_g.save(gan_path)
+
+
 
 class DataGenerator:
+
+        """
+        Python Generator that takes mnc files in folder,
+        process them and returns in form of batch.
+        """
 
         def __init__(self, folder_path, preprocess_fn):
                 self.folder_path = folder_path
@@ -29,7 +44,11 @@ class DataGenerator:
                 self.data_taken = 0
 
         def get_batch(self, batch_size):
-
+                """
+                Return batch of processed mnc files
+                :param batch_size: int, number of files to be returned
+                :return: batch of 3d numpy arrays
+                """
                 batch = []
                 for _ in range(batch_size):
 
@@ -41,18 +60,14 @@ class DataGenerator:
                 return asarray(batch)
 
         def reset_generator(self):
-                # print("generator reseted")
+                """
+                When no more files remain to be used for training
+                Restarts Generator
+                :return:
+                """
                 self.data_taken = 0
                 self.data_generator = (
                         self.preprocess_fn(
                                 path.join(self.folder_path, filename)
                         ) for filename in listdir(self.folder_path)
                 )
-
-
-
-if __name__ == '__main__':
-
-        PATH = path.join('..', 'resources', 'mri')
-        data_generator = DataGenerator(PATH, process_mnc_and_reduce)
-        data_generator.get_batch(2)

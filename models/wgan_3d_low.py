@@ -1,22 +1,21 @@
 from os import path
-import nibabel as nib
+from numpy import squeeze
 import tensorflow as tf
 from tensorflow.keras import Sequential
-from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Input, Conv3DTranspose, Reshape, LeakyReLU, Flatten, Conv3D
 from tensorflow.keras.optimizers import Adam
-from utils.training import DataGenerator
+from utils.training import DataGenerator, save_models
 from utils.imutils import process_mnc_and_reduce
-import numpy as np
-from utils.imutils import pad_image
-from models.wgan_3d import DCWGAN
-from scipy.ndimage import zoom
 from utils.minc_viewer import Viewer
+from models.wgan_3d import DCWGAN
 
 
 if __name__ == '__main__':
 
+        # Initialize NN weights
         init = tf.initializers.RandomNormal(stddev=0.02)
+
+        # Create generator Graph
         generator = Sequential(
                 [       # Input
                         Input(shape=(10,), name='z_input'),
@@ -58,6 +57,7 @@ if __name__ == '__main__':
                 name="generator",
         )
 
+        # Create critic Graph
         critic = Sequential(
                 [       # Input
                         Input(shape=(16, 16, 16, 1), name='input'),
@@ -98,20 +98,24 @@ if __name__ == '__main__':
                 name="critic",
         )
 
-        wgan = DCWGAN(generator=generator, critic=critic)
+        # Create adversarial graph
+        gen_opt = Adam()
+        critic_opt = Adam()
+        wgan = DCWGAN(generator=generator, critic=critic, g_opt=gen_opt, c_opt=critic_opt)
 
-        IMAGE_PATH = path.join('..', 'resources', 'mri')
-        data_generator = DataGenerator(IMAGE_PATH, process_mnc_and_reduce)
+        # Path to mnc files
+        IMAGES_PATH = path.join('..', 'resources', 'mri')
+        data_generator = DataGenerator(IMAGES_PATH, process_mnc_and_reduce)
 
         # --------------------
         #  PARAMETER INIT
         # --------------------
 
         batch_size = 4  # Samples every epoch
-        n_epochs = 10  # Training Epochs
+        n_epochs = 1  # Training Epochs
         plot_interval = 10  # Every plot_interval create a graph with real and generated data distribution
         c_loops = 5  # number of loops to train critic every epoch
-        z_control = tf.random.normal((batch_size, wgan.z_units))
+        z_control = tf.random.normal((batch_size, wgan.z_units))  # Vector to feed gen and control training evolution
 
         # --------------------
         #  TENSORBOARD SETUP
@@ -127,14 +131,12 @@ if __name__ == '__main__':
 
                 # Train Critic
                 for _ in range(c_loops):
-                        # TODO: Import real images Batch
-                        batch = data_generator.get_batch(batch_size)
-                        c_loss = wgan.train_critic(batch)
+
+                        batch = data_generator.get_batch(batch_size)  # Collects Batch of real images
+                        c_loss = wgan.train_critic(batch)  # Train and get critic loss
 
                 # Train Generator
                 g_loss = wgan.train_generator(batch_size)  # Train our model on real distribution points
-                # c_loss = wgan.compute_critic_loss(batch)  # Get batch loss to track data
-                # g_loss = wgan.compute_generator_loss(batch)
 
                 # -----------------------
                 #  TENSORBOARD TRACKING
@@ -150,7 +152,11 @@ if __name__ == '__main__':
                                       generator_train_loss.result(),
                                       critic_train_loss.result()))
 
+        # save models after training
+        save_models(critic, generator, None, "dc_wgan")
+
+        # generate fake sample to visualize
         fake = generator(z_control)[0]
-        fake = np.squeeze(fake, 3)
+        fake = squeeze(fake, 3)
         print(fake.min(), fake.max())
         Viewer(fake)

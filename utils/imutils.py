@@ -1,11 +1,16 @@
-from numpy import array, ndarray, zeros, pad, floor, ceil, ones, expand_dims, save, asarray, load
-from matplotlib.pyplot import imshow, show
+from numpy import array, zeros, pad, floor, ceil, expand_dims, save
 import nibabel as nib
 from os import path, listdir
 from scipy.ndimage.interpolation import zoom
 
 
 def nearest_upper_multiple(number, base):
+        """
+        Finds closest to number upper multiple of base
+        :param number: int, reference number
+        :param base: int, multiple of
+        :return: int, closest to number upper multiple of base
+        """
         return base * ceil(number / base)
 
 
@@ -31,7 +36,6 @@ def pad_image(img: array, multiple=64):
         padding = tuple(zip(start_padding.astype(int), end_padding.astype(int)))  # padding: ((5,6), (19, 20), (5, 6))
         padding_shape = array(padding).shape  # padding_shape = (2, 3)
         padding_zeros = zeros(shape=padding_shape, dtype=int)  # zeros around original image
-
         # Processed Image
         res_image = pad(img, padding, 'constant', constant_values=padding_zeros)
         # Return
@@ -40,14 +44,23 @@ def pad_image(img: array, multiple=64):
 
 def mnc_to_npy(mnc_file):
 
+        """
+        Converts mnc file to numpy array
+        :param mnc_file: mnc file, brainweb fMRI
+        :return: 3D shaped numpy array
+        """
+
         data = mnc_file.get_fdata()
-        # data = data.reshape((192, 256, 192, 1))
         data = data.astype('float32')
         return data
 
 
 def process_mnc_files(path_origin, path_dest):
-
+        """
+        Converts mnc files in folder to .npy files on path dest
+        :param path_origin: str, path of mnc files folder
+        :param path_dest: str, path of npy files folder
+        """
 
         for filename in listdir(path_origin):
                 mnc_path = path.join(path_origin, filename)
@@ -64,6 +77,13 @@ def process_mnc_files(path_origin, path_dest):
 
 def process_mnc(path):
 
+        """
+        Pads single mnc file in path
+        and converts to be filled into NN
+        :param path: str, path of mnc file
+        :return: numpy array
+        """
+
         mnc = nib.load(path)
         img = mnc_to_npy(mnc)
         procc_img = pad_image(img)
@@ -73,11 +93,26 @@ def process_mnc(path):
 
 
 def norm_image(img):
+
+        """
+        returns numpy array normalized to -1 +1
+        :param img:
+        :return:
+        """
+
         img -= img.min()
         return (img / img.max()) * 2 - 1
 
 
 def process_mnc_and_reduce(file_path):
+
+        """
+        Normalizes and Reduces mnc file to numpy array
+        Array gets ready to be fed into NN
+        :param file_path: path of mnc file.
+        :return: numpy array
+        """
+
         mnc = nib.load(file_path)
         img = mnc_to_npy(mnc)
         img = pad_image(img)
@@ -85,28 +120,3 @@ def process_mnc_and_reduce(file_path):
         img = norm_image(img)
         img = expand_dims(img, 3)
         return img
-
-
-if __name__ == '__main__':
-
-    # image = ones(shape=(181,217,181)) * 150
-    IMAGE_FILE = 'brain.mnc'
-    IMAGE_PATH = path.join('..', 'resources', 'mri', IMAGE_FILE)
-    img = process_mnc_and_reduce(IMAGE_PATH)
-    #
-    # img = nib.load(IMAGE_PATH)
-    # data = img.get_fdata()
-    #
-    # a = pad_image(data, 64)
-    # a = zoom(a, (1/12, 1/16, 1/12))
-    #
-    # imshow(a[8])
-    # show()
-
-    # PATH = path.join('..', 'resources', 'mri')
-    # DEST_PATH = path.join('..', 'resources', 'data')
-    # process_mnc_files(PATH, DEST_PATH)
-    # DEST_PATH = path.join('..', 'resources', 'data', 'images.npy')
-    #
-    # img = load(DEST_PATH)
-    print(img)
