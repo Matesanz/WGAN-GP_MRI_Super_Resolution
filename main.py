@@ -1,11 +1,12 @@
 from os import path
-from numpy import squeeze
+from numpy import squeeze, flip
 from time import strftime, localtime, time
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 from utils.training import DataGenerator
 from utils.imutils import process_mnc_and_reduce
 from utils.minc_viewer import Viewer
+from utils.plotting import TrainingImagePlotter
 from models.wgan_3d_low import critic, generator
 from models.wgan_3d import DCWGAN
 
@@ -30,10 +31,10 @@ if __name__ == '__main__':
         # --------------------
 
         batch_size = 4  # Samples every epoch
-        n_epochs = 1000  # Training Epochs
-        plot_interval = 100  # Every plot_interval create a graph with real and generated data distribution
+        n_epochs = 10  # Training Epochs
+        plot_interval = 1  # Every plot_interval create a graph with real and generated data distribution
         c_loops = 5  # number of loops to train critic every epoch
-        z_control = tf.random.normal((batch_size, wgan.z_units))  # Vector to feed gen and control training evolution
+        z_control = tf.random.normal((1, wgan.z_units))  # Vector to feed gen and control training evolution
 
         # --------------------
         #  TENSORBOARD SETUP
@@ -41,6 +42,9 @@ if __name__ == '__main__':
 
         generator_train_loss = tf.keras.metrics.Mean('generator_train_loss', dtype=tf.float32)
         critic_train_loss = tf.keras.metrics.Mean('critic_train_loss', dtype=tf.float32)
+
+        slices = 4
+        plotter = TrainingImagePlotter(plot_interval, n_epochs, slices)
 
         # Set Tensorboard Directory to track data
         time_now = strftime("%d-%b-%H%M", localtime())
@@ -80,6 +84,17 @@ if __name__ == '__main__':
                                       generator_train_loss.result(),
                                       critic_train_loss.result()))
 
+                # ---------------------------
+                #  GENERATED IMAGE EVOLUTION
+                # ---------------------------
+
+                if epoch % plot_interval == 0:
+
+                        fake = generator(z_control)[0]  # Generate fake MRI
+                        fake = squeeze(fake, 3)  # Convert (16x16x16x1) into (16x16x16)
+
+                        plotter.plot_epoch(epoch, fake)  # Add to plot
+
                 # -----------------------
                 #  TENSORBOARD PLOTTING
                 # ------------------------
@@ -97,6 +112,10 @@ if __name__ == '__main__':
 
                 print("Epoch took {} seconds".format(round(time() - start_time, 2)))
 
+        # ---------------
+        #  SAVE WEIGHTS
+        # ---------------
+
         # save models after training
         folder_path = path.join('models', 'weights', 'dc_wgan_low')
         generator_name = 'generator_dc_wgan_low.h5'
@@ -106,8 +125,12 @@ if __name__ == '__main__':
         generator.save(generator_path)
         critic.save(critic_path)
 
+        # -----------------------
+        #  INSPECT GENERATED MRI
+        # -----------------------
+
         # generate fake sample to visualize
-        fake = generator(z_control)[0]
-        fake = squeeze(fake, 3)
+        fake = generator(z_control)[0]  # Generate fake MRI
+        fake = squeeze(fake, 3)  # Convert (16x16x16x1) into (16x16x16)
         print("Min and Max values of fake image are:", fake.min(), fake.max())
-        Viewer(fake)
+        Viewer(fake)  # Inspect Generated MRI
