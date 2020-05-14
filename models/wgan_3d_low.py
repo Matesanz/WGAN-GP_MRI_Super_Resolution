@@ -1,5 +1,6 @@
 from os import path
 from numpy import squeeze
+from time import strftime, localtime, time
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense, Input, Conv3DTranspose, Reshape, LeakyReLU, Flatten, Conv3D
@@ -97,6 +98,10 @@ critic = Sequential(
 
 if __name__ == '__main__':
 
+        # load weights
+        critic.load_weights("weights/dc_wgan_low/critic_dc_wgan_low.h5")
+        generator.load_weights("weights/dc_wgan_low/generator_dc_wgan_low.h5")
+
         # Create adversarial graph
         gen_opt = Adam()
         critic_opt = Adam()
@@ -119,10 +124,20 @@ if __name__ == '__main__':
         # --------------------
         #  TENSORBOARD SETUP
         # --------------------
+
         generator_train_loss = tf.keras.metrics.Mean('generator_train_loss', dtype=tf.float32)
         critic_train_loss = tf.keras.metrics.Mean('critic_train_loss', dtype=tf.float32)
 
+        # Set Tensorboard Directory to track data
+        time_now = strftime("%d-%b-%H%M", localtime())
+        log_dir = path.join('..', 'logs', 'dc_wgan_low', time_now)
+        # Start model data tracing (logs)
+        summary_writer = tf.summary.create_file_writer(log_dir)
+        tf.summary.trace_on()
+
         for epoch in range(n_epochs):
+
+                start_time = time()
 
                 # --------------------
                 #     TRAINING
@@ -151,8 +166,25 @@ if __name__ == '__main__':
                                       generator_train_loss.result(),
                                       critic_train_loss.result()))
 
+                # -----------------------
+                #  TENSORBOARD PLOTTING
+                # ------------------------
+
+                with summary_writer.as_default():
+
+                        # Write losses
+                        tf.summary.scalar('Generator Loss',
+                                          generator_train_loss.result(),
+                                          step=epoch)
+
+                        tf.summary.scalar('Discriminator Loss',
+                                          critic_train_loss.result(),
+                                          step=epoch)
+
+                print("Epoch took {} seconds".format(round(time() - start_time, 2)))
+
         # save models after training
-        save_models(critic, generator, None, "dc_wgan")
+        save_models(critic, generator, None, "dc_wgan_low")
 
         # generate fake sample to visualize
         fake = generator(z_control)[0]
