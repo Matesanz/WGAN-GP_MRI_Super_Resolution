@@ -1,5 +1,5 @@
 from os import path
-from numpy import squeeze
+from numpy import squeeze, load
 from time import strftime, localtime, time
 import tensorflow as tf
 from tensorflow.keras import Sequential
@@ -109,7 +109,7 @@ if __name__ == '__main__':
 
         # Path to mnc files
         IMAGES_PATH = path.join('..', 'resources', 'mri')
-        data_generator = DataGenerator(IMAGES_PATH, process_mnc_and_reduce)
+        data_generator = DataGenerator(IMAGES_PATH, load)
 
         # --------------------
         #  PARAMETER INIT
@@ -147,9 +147,9 @@ if __name__ == '__main__':
                 # --------------------
 
                 # Train Critic
-                for _ in range(c_loops):
+                batch = data_generator.get_batch(batch_size)  # Collects Batch of real images
 
-                        batch = data_generator.get_batch(batch_size)  # Collects Batch of real images
+                for _ in tf.range(c_loops):
                         c_loss = wgan.train_critic(batch)  # Train and get critic loss
 
                 # Train Generator

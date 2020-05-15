@@ -1,5 +1,5 @@
 from os import path
-from numpy import squeeze
+from numpy import squeeze, load
 from time import strftime, localtime, time
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
@@ -13,8 +13,8 @@ from models.wgan_3d import DCWGAN
 if __name__ == '__main__':
         
         # load weights
-        critic.load_weights("models/weights/dc_wgan_low/critic_dc_wgan_low.h5")
-        generator.load_weights("models/weights/dc_wgan_low/generator_dc_wgan_low.h5")
+        # critic.load_weights("models/weights/dc_wgan_low/critic_dc_wgan_low_2.h5")
+        # generator.load_weights("models/weights/dc_wgan_low/generator_dc_wgan_low_2.h5")
         
         # Create adversarial graph
         gen_opt = Adam()
@@ -23,15 +23,15 @@ if __name__ == '__main__':
 
         # Path to mnc files
         # IMAGES_PATH = path.join('resources', 'mri')
-        IMAGES_PATH = 'D:\\Matesanz\\Imágenes\\training\\bruto'
-        data_generator = DataGenerator(IMAGES_PATH, process_mnc_and_reduce)
+        IMAGES_PATH = 'D:\\Matesanz\\Imágenes\\training\\clean'
+        data_generator = DataGenerator(IMAGES_PATH, load)
 
         # --------------------
         #  PARAMETER INIT
         # --------------------
 
         batch_size = 4  # Samples every epoch
-        n_epochs = 2  # Training Epochs
+        n_epochs = 2000  # Training Epochs
         plot_interval = 50  # Every plot_interval create a graph with real and generated data distribution
         c_loops = 5  # number of loops to train critic every epoch
         z_control = tf.random.normal((1, wgan.z_units))  # Vector to feed gen and control training evolution
@@ -53,6 +53,7 @@ if __name__ == '__main__':
 
         g_loss_list, c_loss_list = [], []
 
+        print("START TRAINING")
         for epoch in range(n_epochs):
 
                 start_time = time()
@@ -62,9 +63,9 @@ if __name__ == '__main__':
                 # --------------------
 
                 # Train Critic
-                for _ in range(c_loops):
+                batch = data_generator.get_batch(batch_size)  # Collects Batch of real images
 
-                        batch = data_generator.get_batch(batch_size)  # Collects Batch of real images
+                for _ in tf.range(c_loops):
                         c_loss = wgan.train_critic(batch)  # Train and get critic loss
 
                 # Train Generator
@@ -107,8 +108,8 @@ if __name__ == '__main__':
 
         # save models after training
         folder_path = path.join('models', 'weights', 'dc_wgan_low')
-        generator_name = 'generator_dc_wgan_low.h5'
-        critic_name = 'critic_dc_wgan_low.h5'
+        generator_name = 'generator_dc_wgan_low_2.h5'
+        critic_name = 'critic_dc_wgan_low_2.h5'
         generator_path = path.join(folder_path, generator_name)
         critic_path = path.join(folder_path, critic_name)
         generator.save(generator_path)
