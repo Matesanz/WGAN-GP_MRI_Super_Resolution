@@ -55,7 +55,7 @@ def mnc_to_npy(mnc_file):
         return data
 
 
-def process_mnc_files(path_origin, path_dest):
+def process_mnc_files(path_origin, path_dest, process_fn):
         """
         Converts mnc files in folder to .npy files on path dest
         :param path_origin: str, path of mnc files folder
@@ -63,15 +63,10 @@ def process_mnc_files(path_origin, path_dest):
         """
 
         for filename in listdir(path_origin):
+
                 mnc_path = path.join(path_origin, filename)
-                mnc = nib.load(mnc_path)
-
-                img = mnc_to_npy(mnc)
-                procc_img = pad_image(img)
-                procc_img = expand_dims(procc_img, 3)
+                procc_img = process_fn(mnc_path)
                 name = path.splitext(filename)[0]
-
-
                 npy_path = path.join(path_dest, name)
                 save(npy_path, procc_img)
 
