@@ -116,24 +116,27 @@ if __name__ == '__main__':
         # --------------------
 
         batch_size = 4  # Samples every epoch
-        n_epochs = 1  # Training Epochs
-        plot_interval = 10  # Every plot_interval create a graph with real and generated data distribution
+        n_epochs = 10  # Training Epochs
+        plot_interval = 2  # Every plot_interval create a graph with real and generated data distribution
         c_loops = 5  # number of loops to train critic every epoch
-        z_control = tf.random.normal((batch_size, wgan.z_units))  # Vector to feed gen and control training evolution
+        z_control = tf.random.normal((1, wgan.z_units))  # Vector to feed gen and control training evolution
 
         # --------------------
         #  TENSORBOARD SETUP
         # --------------------
 
+        # Track Training Losses
         generator_train_loss = tf.keras.metrics.Mean('generator_train_loss', dtype=tf.float32)
         critic_train_loss = tf.keras.metrics.Mean('critic_train_loss', dtype=tf.float32)
 
         # Set Tensorboard Directory to track data
         time_now = strftime("%d-%b-%H%M", localtime())
         log_dir = path.join('..', 'logs', 'dc_wgan_low', time_now)
+
         # Start model data tracing (logs)
         summary_writer = tf.summary.create_file_writer(log_dir)
         tf.summary.trace_on()
+
 
         for epoch in range(n_epochs):
 
@@ -183,11 +186,20 @@ if __name__ == '__main__':
 
                 print("Epoch took {} seconds".format(round(time() - start_time, 2)))
 
-        # save models after training
-        save_models(critic, generator, None, "dc_wgan_low")
+        # ---------------
+        #  SAVE WEIGHTS
+        # ---------------
+
+        folder_path = path.join('weights', 'dc_wgan_low')
+        generator_name = 'generator_dc_wgan_low.h5'
+        critic_name = 'critic_dc_wgan_low.h5'
+        generator_path = path.join(folder_path, generator_name)
+        critic_path = path.join(folder_path, critic_name)
+        generator.save(generator_path)
+        critic.save(critic_path)
 
         # generate fake sample to visualize
         fake = generator(z_control)[0]
         fake = squeeze(fake, 3)
-        print(fake.min(), fake.max())
+        print("Min and Max values of fake image are:", fake.min(), fake.max())
         Viewer(fake)

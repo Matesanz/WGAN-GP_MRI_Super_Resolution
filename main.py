@@ -1,12 +1,11 @@
 from os import path
-from numpy import squeeze, flip
+from numpy import squeeze
 from time import strftime, localtime, time
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 from utils.training import DataGenerator
 from utils.imutils import process_mnc_and_reduce
 from utils.minc_viewer import Viewer
-from utils.plotting import TrainingImagePlotter
 from models.wgan_3d_low import critic, generator
 from models.wgan_3d import DCWGAN
 
@@ -23,7 +22,8 @@ if __name__ == '__main__':
         wgan = DCWGAN(generator=generator, critic=critic, g_opt=gen_opt, c_opt=critic_opt)
 
         # Path to mnc files
-        IMAGES_PATH = path.join('resources', 'mri')
+        # IMAGES_PATH = path.join('resources', 'mri')
+        IMAGES_PATH = 'D:\\Matesanz\\Imágenes\\training\\bruto'
         data_generator = DataGenerator(IMAGES_PATH, process_mnc_and_reduce)
 
         # --------------------
@@ -31,8 +31,8 @@ if __name__ == '__main__':
         # --------------------
 
         batch_size = 4  # Samples every epoch
-        n_epochs = 10  # Training Epochs
-        plot_interval = 1  # Every plot_interval create a graph with real and generated data distribution
+        n_epochs = 2  # Training Epochs
+        plot_interval = 50  # Every plot_interval create a graph with real and generated data distribution
         c_loops = 5  # number of loops to train critic every epoch
         z_control = tf.random.normal((1, wgan.z_units))  # Vector to feed gen and control training evolution
 
@@ -43,15 +43,15 @@ if __name__ == '__main__':
         generator_train_loss = tf.keras.metrics.Mean('generator_train_loss', dtype=tf.float32)
         critic_train_loss = tf.keras.metrics.Mean('critic_train_loss', dtype=tf.float32)
 
-        slices = 4
-        plotter = TrainingImagePlotter(plot_interval, n_epochs, slices)
-
         # Set Tensorboard Directory to track data
         time_now = strftime("%d-%b-%H%M", localtime())
         log_dir = path.join('logs', 'dc_wgan_low', time_now)
+
         # Start model data tracing (logs)
         summary_writer = tf.summary.create_file_writer(log_dir)
         tf.summary.trace_on()
+
+        g_loss_list, c_loss_list = [], []
 
         for epoch in range(n_epochs):
 
@@ -83,17 +83,6 @@ if __name__ == '__main__':
                 print(template.format(epoch + 1,
                                       generator_train_loss.result(),
                                       critic_train_loss.result()))
-
-                # ---------------------------
-                #  GENERATED IMAGE EVOLUTION
-                # ---------------------------
-
-                if epoch % plot_interval == 0:
-
-                        fake = generator(z_control)[0]  # Generate fake MRI
-                        fake = squeeze(fake, 3)  # Convert (16x16x16x1) into (16x16x16)
-
-                        plotter.plot_epoch(epoch, fake)  # Add to plot
 
                 # -----------------------
                 #  TENSORBOARD PLOTTING
